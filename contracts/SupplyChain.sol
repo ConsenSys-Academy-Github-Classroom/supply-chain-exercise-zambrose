@@ -1,34 +1,47 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.5.16 <0.9.0;
 
+
 contract SupplyChain {
 
-  // <owner>
 
-  // <skuCount>
+    address public owner = msg.sender;
 
-  // <items mapping>
+    uint public skuCount = 0;
 
-  // <enum State: ForSale, Sold, Shipped, Received>
+    enum State {
+        ForSale,
+        Sold,
+        Shipped,
+        Received
+    }
 
-  // <struct Item: name, sku, price, state, seller, and buyer>
-  
-  /* 
-   * Events
-   */
+    struct Item {
+        string name;
+        uint sku;
+        uint price;
+        State state;
+        address payable seller;
+        address payable buyer;
+    }
 
-  // <LogForSale event: sku arg>
+    mapping(uint => Item) public items;
 
-  // <LogSold event: sku arg>
+    /*
+    * Events
+    */
 
-  // <LogShipped event: sku arg>
+    event LogForSale(uint sku);
 
-  // <LogReceived event: sku arg>
+    event LogSold(uint sku);
 
+    event LogShipped(uint sku);
 
-  /* 
-   * Modifiers
-   */
+    event LogReceived(uint sku);
+
+    /* 
+    * Modifiers
+    */
 
   // Create a modifer, `isOwner` that checks if the msg.sender is the owner of the contract
 
@@ -64,6 +77,16 @@ contract SupplyChain {
   // modifier sold(uint _sku) 
   // modifier shipped(uint _sku) 
   // modifier received(uint _sku) 
+  
+    modifier canShip(uint _sku) {
+        require(items[_sku].seller == msg.sender, "shipper must be seller");
+        _;
+    }
+
+    modifier canReceive(uint _sku) {
+        require(items[_sku].buyer == msg.sender, "only buyer can receive");
+        _;
+    }
 
   constructor() public {
     // 1. Set the owner to the transaction sender
@@ -72,23 +95,21 @@ contract SupplyChain {
 
   function addItem(string memory _name, uint _price) public returns (bool) {
     // 1. Create a new item and put in array
-    // 2. Increment the skuCount by one
-    // 3. Emit the appropriate event
-    // 4. return true
 
-    // hint:
-    // items[skuCount] = Item({
-    //  name: _name, 
-    //  sku: skuCount, 
-    //  price: _price, 
-    //  state: State.ForSale, 
-    //  seller: msg.sender, 
-    //  buyer: address(0)
-    //});
-    //
-    //skuCount = skuCount + 1;
-    // emit LogForSale(skuCount);
-    // return true;
+      items[skuCount] = Item({
+          name: _name,
+          sku: skuCount,
+          price: _price,
+          state: State.ForSale,
+          seller: msg.sender,
+          buyer: address(0)
+      });
+
+      emit LogForSale(skuCount);
+
+      skuCount = skuCount + 1;
+
+      return true;
   }
 
   // Implement this buyItem function. 
@@ -102,32 +123,46 @@ contract SupplyChain {
   //    - check the value after the function is called to make 
   //      sure the buyer is refunded any excess ether sent. 
   // 6. call the event associated with this function!
-  function buyItem(uint sku) public {}
+    function buyItem(uint sku) public payable {
+        // TODO: ensure item for sale
+        // TODO: ensure buyer paid enough
+        items[sku].seller.transfer(items[sku].price);
+        items[sku].buyer = msg.sender;
+        items[sku].state = State.Sold;
+
+
+        emit LogSold(sku);
+    }
 
   // 1. Add modifiers to check:
   //    - the item is sold already 
   //    - the person calling this function is the seller. 
   // 2. Change the state of the item to shipped. 
   // 3. call the event associated with this function!
-  function shipItem(uint sku) public {}
+  function shipItem(uint sku) public canShip(sku) {
+      items[sku].state = State.Shipped;
+      emit LogShipped(sku);
+  }
 
   // 1. Add modifiers to check 
   //    - the item is shipped already 
   //    - the person calling this function is the buyer. 
   // 2. Change the state of the item to received. 
   // 3. Call the event associated with this function!
-  function receiveItem(uint sku) public {}
+  function receiveItem(uint sku) public canReceive(sku) {
+      items[sku].state = State.Received;
+      emit LogReceived(sku);
+  }
 
   // Uncomment the following code block. it is needed to run tests
-  /* function fetchItem(uint _sku) public view */ 
-  /*   returns (string memory name, uint sku, uint price, uint state, address seller, address buyer) */ 
-  /* { */
-  /*   name = items[_sku].name; */
-  /*   sku = items[_sku].sku; */
-  /*   price = items[_sku].price; */
-  /*   state = uint(items[_sku].state); */
-  /*   seller = items[_sku].seller; */
-  /*   buyer = items[_sku].buyer; */
-  /*   return (name, sku, price, state, seller, buyer); */
-  /* } */
+  function fetchItem(uint _sku) public view 
+    returns (string memory name, uint sku, uint price, uint state, address seller, address buyer) { 
+      name = items[_sku].name;
+      sku = items[_sku].sku;
+      price = items[_sku].price;
+      state = uint(items[_sku].state);
+      seller = items[_sku].seller;
+      buyer = items[_sku].buyer;
+      return (name, sku, price, state, seller, buyer);
+  }
 }
